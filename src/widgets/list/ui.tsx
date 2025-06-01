@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { FixedSizeList } from "react-window";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
@@ -20,64 +20,72 @@ interface Item {
 }
 
 export const List: React.FC = () => {
-  const listState = {
-    ...(getValueLocalStorage<LocalStorageListStateType>(
+  const listState: LocalStorageListStateType = {
+    selectedIds: [],
+    sortOrder: "asc",
+    ...getValueLocalStorage<LocalStorageListStateType>(
       LOCAL_STORAGE_KEY_LIST_STATE
-    ) ?? {}),
+    ),
   };
+
   const [selected, setSelected] = useState<Set<number>>(
-    new Set(listState?.selectedIds ?? [])
+    new Set(listState.selectedIds)
   );
   const [search, setSearch] = useState<string>("");
   const [sortOrder, setSortOrder] = useState<SortOrderType>(
-    listState?.sortOrder ?? "asc"
+    listState.sortOrder
   );
-
   const [data, setData] = useState<{ totalRecords: number; records: Item[] }>({
     totalRecords: 0,
     records: [],
   });
 
-  useEffect(() => {
-    const handleEffect = async () => {
+  const loadingRef = useRef<boolean>(false);
+
+  const fetchItems = useCallback(
+    async (start: number, limit: number) => {
       try {
+        if (loadingRef.current) return { records: [], totalRecords: 0 };
+
+        loadingRef.current = true;
+
         const response = await fetch(
           `${
             import.meta.env.VITE_BACKEND_URL
-          }/list-default?start=0&limit=${BATCH_SIZE}&search=${search}&sortOrder=${sortOrder}`
+          }/list-default?start=${start}&limit=${limit}&search=${search}&sortOrder=${sortOrder}`
         );
 
-        const result = await response.json();
+        if (!response.ok)
+          throw new Error("Произошла ошибка при получении данных.");
 
-        setData({
-          totalRecords: result.totalRecords,
-          records: result.records,
-        });
+        loadingRef.current = false;
+        return await response.json();
       } catch (e) {
         console.log(e);
+        loadingRef.current = false;
+        return { records: [], totalRecords: 0 };
       }
-    };
+    },
+    [search, sortOrder]
+  );
 
+  useEffect(() => {
+    const handleEffect = async () => {
+      const result = await fetchItems(0, BATCH_SIZE);
+      setData({
+        totalRecords: result.totalRecords,
+        records: result.records,
+      });
+    };
     handleEffect();
-  }, [search, sortOrder]);
+  }, [fetchItems]);
 
   const loadMoreItems = async () => {
-    try {
-      const response = await fetch(
-        `${import.meta.env.VITE_BACKEND_URL}/list-default?start=${
-          data.records.length
-        }&limit=${BATCH_SIZE}&search=${search}&sortOrder=${sortOrder}`
-      );
-
-      const result = await response.json();
-
-      setData((prev) => ({
-        ...prev,
-        records: [...prev.records, ...result.records],
-      }));
-    } catch (e) {
-      console.log(e);
-    }
+    const result = await fetchItems(data.records.length, BATCH_SIZE);
+    setData((prev) => ({
+      ...prev,
+      records: [...prev.records, ...result.records],
+    }));
   };
 
   const toggleSelect = (id: number) => {
@@ -106,13 +114,9 @@ export const List: React.FC = () => {
 
   const moveItem = async (fromIndex: number, toIndex: number) => {
     try {
-      let indexOfItem = data.records.findIndex(
-        (item) => item.id === data.records[toIndex].id
-      );
-
-      if (sortOrder === "desc") {
-        indexOfItem = data.totalRecords - indexOfItem;
-      }
+      const movedItem = data.records[fromIndex];
+      const targetIndex =
+        sortOrder === "desc" ? data.totalRecords - toIndex - 1 : toIndex;
 
       const response = await fetch(
         `${import.meta.env.VITE_BACKEND_URL}/operation-sort`,
@@ -120,8 +124,8 @@ export const List: React.FC = () => {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            id: data.records[fromIndex].id,
-            toIndex: indexOfItem,
+            id: movedItem.id,
+            toIndex: targetIndex,
           }),
         }
       );
@@ -129,7 +133,7 @@ export const List: React.FC = () => {
       await response.json();
 
       const newItems = [...data.records];
-      const [movedItem] = newItems.splice(fromIndex, 1);
+      newItems.splice(fromIndex, 1);
       newItems.splice(toIndex, 0, movedItem);
 
       setData((prev) => ({
@@ -143,9 +147,7 @@ export const List: React.FC = () => {
 
   const handleSort = () => {
     const newSortOrder = sortOrder === "asc" ? "desc" : "asc";
-
     setSortOrder(newSortOrder);
-
     setValueLocalStorage<LocalStorageListStateType>(
       LOCAL_STORAGE_KEY_LIST_STATE,
       {
