@@ -1,0 +1,1 @@
+export {getValueLocalStorage} from './get-local-storage';
