@@ -15,22 +15,25 @@ interface Item {
 
 type LocalStorageListState = {
   selectedIds: number[];
-  sortOrder: SortOrder
+  sortOrder: SortOrderStateType;
 };
 
 const LOCAL_STORAGE_LIST_STATE = "list_state";
 
-type SortOrder = "asc" | "desc";
+type SortOrderStateType = "asc" | "desc";
 
 export const List: React.FC = () => {
-  const listState = {...(getValueLocalStorage<LocalStorageListState>(LOCAL_STORAGE_LIST_STATE) ?? {})}
+  const listState = {
+    ...(getValueLocalStorage<LocalStorageListState>(LOCAL_STORAGE_LIST_STATE) ??
+      {}),
+  };
   const [selected, setSelected] = useState<Set<number>>(
-    new Set(
-      listState?.selectedIds ?? []
-    )
+    new Set(listState?.selectedIds ?? [])
   );
   const [search, setSearch] = useState<string>("");
-  const [sortOrder, setSortOrder] = useState<SortOrder>(listState?.sortOrder ?? "asc");
+  const [sortOrder, setSortOrder] = useState<SortOrderStateType>(
+    listState?.sortOrder ?? "asc"
+  );
 
   const [data, setData] = useState<{ totalRecords: number; records: Item[] }>({
     totalRecords: 0,
@@ -38,29 +41,45 @@ export const List: React.FC = () => {
   });
 
   useEffect(() => {
-    fetch(
-      `${import.meta.env.VITE_BACKEND_URL}/items?start=0&limit=${BATCH_SIZE}&search=${search}&sortOrder=${sortOrder}`
-    )
-      .then((res) => res.json())
-      .then(({ items, totalCount }) => {
+    const handleEffect = async () => {
+      try {
+        const response = await fetch(
+          `${
+            import.meta.env.VITE_BACKEND_URL
+          }/list-default?start=0&limit=${BATCH_SIZE}&search=${search}&sortOrder=${sortOrder}`
+        );
+
+        const result = await response.json();
+
         setData({
-          totalRecords: totalCount,
-          records: items,
+          totalRecords: result.totalRecords,
+          records: result.records,
         });
-      });
+      } catch (e) {
+        console.log(e);
+      }
+    };
+
+    handleEffect();
   }, [search, sortOrder]);
 
-  const loadMoreItems = () => {
-    fetch(
-      `${import.meta.env.VITE_BACKEND_URL}/items?start=${data.records.length}&limit=${BATCH_SIZE}&search=${search}&sortOrder=${sortOrder}`
-    )
-      .then((res) => res.json())
-      .then(({ items: newItems }) => {
-        setData((prev) => ({
-          ...prev,
-          records: [...prev.records, ...newItems],
-        }));
-      });
+  const loadMoreItems = async () => {
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_BACKEND_URL}/list-default?start=${
+          data.records.length
+        }&limit=${BATCH_SIZE}&search=${search}&sortOrder=${sortOrder}`
+      );
+
+      const result = await response.json();
+
+      setData((prev) => ({
+        ...prev,
+        records: [...prev.records, ...result.records],
+      }));
+    } catch (e) {
+      console.log(e);
+    }
   };
 
   const toggleSelect = (id: number) => {
@@ -85,18 +104,23 @@ export const List: React.FC = () => {
         (item) => item.id === data.records[toIndex].id
       );
 
-      if(sortOrder === "desc") {
+      if (sortOrder === "desc") {
         indexOfItem = data.totalRecords - indexOfItem;
       }
 
-      await fetch(`${import.meta.env.VITE_BACKEND_URL}/sort-dnd`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: data.records[fromIndex].id,
-          toIndex: indexOfItem,
-        }),
-      }).then((res) => res.json());
+      const response = await fetch(
+        `${import.meta.env.VITE_BACKEND_URL}/operation-sort`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: data.records[fromIndex].id,
+            toIndex: indexOfItem,
+          }),
+        }
+      );
+
+      await response.json();
 
       const newItems = [...data.records];
       const [movedItem] = newItems.splice(fromIndex, 1);
@@ -119,7 +143,9 @@ export const List: React.FC = () => {
     localStorage.setItem(
       LOCAL_STORAGE_LIST_STATE,
       JSON.stringify({
-        ...getValueLocalStorage<LocalStorageListState>(LOCAL_STORAGE_LIST_STATE),
+        ...getValueLocalStorage<LocalStorageListState>(
+          LOCAL_STORAGE_LIST_STATE
+        ),
         sortOrder: newSortOrder,
       })
     );
@@ -128,7 +154,9 @@ export const List: React.FC = () => {
   return (
     <DndProvider backend={HTML5Backend}>
       <div className="p-4 container mx-auto">
-        <h1 className="font-bold text-3xl text-center py-4">Тестовое задание</h1>
+        <h1 className="font-bold text-3xl text-center py-4">
+          Тестовое задание
+        </h1>
 
         <div className="flex items-center gap-4 my-5">
           <input
