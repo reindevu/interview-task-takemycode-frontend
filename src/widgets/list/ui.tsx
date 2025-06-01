@@ -3,7 +3,13 @@ import { FixedSizeList } from "react-window";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { ListRow } from "../../entities/list-row/ui";
-import { getValueLocalStorage } from "../../shared/config/helpers";
+import {
+  getValueLocalStorage,
+  type LocalStorageListStateType,
+  setValueLocalStorage,
+  LOCAL_STORAGE_KEY_LIST_STATE,
+} from "../../shared/config/helpers";
+import type { SortOrderType } from "../../shared/config/types";
 
 const BATCH_SIZE = 20;
 
@@ -13,25 +19,17 @@ interface Item {
   order: number;
 }
 
-type LocalStorageListState = {
-  selectedIds: number[];
-  sortOrder: SortOrderStateType;
-};
-
-const LOCAL_STORAGE_LIST_STATE = "list_state";
-
-type SortOrderStateType = "asc" | "desc";
-
 export const List: React.FC = () => {
   const listState = {
-    ...(getValueLocalStorage<LocalStorageListState>(LOCAL_STORAGE_LIST_STATE) ??
-      {}),
+    ...(getValueLocalStorage<LocalStorageListStateType>(
+      LOCAL_STORAGE_KEY_LIST_STATE
+    ) ?? {}),
   };
   const [selected, setSelected] = useState<Set<number>>(
     new Set(listState?.selectedIds ?? [])
   );
   const [search, setSearch] = useState<string>("");
-  const [sortOrder, setSortOrder] = useState<SortOrderStateType>(
+  const [sortOrder, setSortOrder] = useState<SortOrderType>(
     listState?.sortOrder ?? "asc"
   );
 
@@ -92,9 +90,17 @@ export const List: React.FC = () => {
     }
 
     setSelected(newSet);
-    localStorage.setItem(
-      LOCAL_STORAGE_LIST_STATE,
-      JSON.stringify({ selectedIds: Array.from(newSet) })
+
+    const prevState = getValueLocalStorage<LocalStorageListStateType>(
+      LOCAL_STORAGE_KEY_LIST_STATE
+    );
+
+    setValueLocalStorage<LocalStorageListStateType>(
+      LOCAL_STORAGE_KEY_LIST_STATE,
+      {
+        selectedIds: Array.from(newSet),
+        sortOrder: prevState?.sortOrder ?? "asc",
+      }
     );
   };
 
@@ -140,14 +146,15 @@ export const List: React.FC = () => {
 
     setSortOrder(newSortOrder);
 
-    localStorage.setItem(
-      LOCAL_STORAGE_LIST_STATE,
-      JSON.stringify({
-        ...getValueLocalStorage<LocalStorageListState>(
-          LOCAL_STORAGE_LIST_STATE
-        ),
+    setValueLocalStorage<LocalStorageListStateType>(
+      LOCAL_STORAGE_KEY_LIST_STATE,
+      {
+        selectedIds:
+          getValueLocalStorage<LocalStorageListStateType>(
+            LOCAL_STORAGE_KEY_LIST_STATE
+          )?.selectedIds ?? [],
         sortOrder: newSortOrder,
-      })
+      }
     );
   };
 
