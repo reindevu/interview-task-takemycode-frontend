@@ -80,18 +80,17 @@ export const List: React.FC = () => {
     try {
       const movedItem = data.records[fromIndex];
       const toItem = data.records[toIndex];
- 
-      await updateSortRowQuery(movedItem.id, toItem.id);
-      
+
       const newItems = [...data.records];
       newItems.splice(fromIndex, 1);
       newItems.splice(toIndex, 0, movedItem);
-      console.log(fromIndex, toIndex);
 
       setData((prev) => ({
         ...prev,
         records: newItems,
       }));
+
+      await updateSortRowQuery(movedItem.id, toItem.id);
     } catch (e) {
       console.log(e);
     }
@@ -106,7 +105,6 @@ export const List: React.FC = () => {
       console.log(e);
     }
   };
-
 
   const debouncedSearch = useDebounce(search, 300);
 
@@ -131,8 +129,6 @@ export const List: React.FC = () => {
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sortOrder, debouncedSearch]);
-
-  
 
   return (
     <DndProvider backend={HTML5Backend}>
