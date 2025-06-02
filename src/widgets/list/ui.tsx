@@ -133,7 +133,10 @@ export const List: React.FC = () => {
   }, [sortOrder, debouncedSearch]);
 
   return (
-    <DndProvider backend={isMobile ? TouchBackend : HTML5Backend}>
+    <DndProvider
+      backend={isMobile ? TouchBackend : HTML5Backend}
+      options={isMobile ? { delayTouchStart: 200 } : {}}
+    >
       <div className="p-4 container mx-auto">
         <h1 className="font-bold text-3xl text-center py-4">
           Тестовое задание

@@ -18,7 +18,7 @@ type Props = {
     items: Item[];
     moveItem: (fromIndex: number, toIndex: number, id: number) => void;
   };
-}
+};
 
 export const ListRow: FC<Props> = ({ index, style, data }) => {
   const { selected, toggleSelect, items, moveItem } = data;
@@ -34,13 +34,13 @@ export const ListRow: FC<Props> = ({ index, style, data }) => {
 
   const [, dropRef] = useDrop({
     accept: ItemType,
-    hover: () => {},
     drop: (draggedItem: { index: number }) => {
       if (draggedItem.index !== index) {
         moveItem(draggedItem.index, index, actualItem.id);
       }
     },
   });
+
 
   return (
     <div
