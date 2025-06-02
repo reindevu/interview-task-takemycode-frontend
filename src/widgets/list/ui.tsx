@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { FixedSizeList } from "react-window";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
+import { TouchBackend } from "react-dnd-touch-backend";
+import { isMobile } from "react-device-detect";
 import { ListRow } from "../../entities/list-row/ui";
 import type { SortOrderType } from "../../shared/config/types";
 import {
@@ -131,7 +133,7 @@ export const List: React.FC = () => {
   }, [sortOrder, debouncedSearch]);
 
   return (
-    <DndProvider backend={HTML5Backend}>
+    <DndProvider backend={isMobile ? TouchBackend : HTML5Backend}>
       <div className="p-4 container mx-auto">
         <h1 className="font-bold text-3xl text-center py-4">
           Тестовое задание
