@@ -1,84 +1,62 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { FixedSizeList } from "react-window";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { ListRow } from "../../entities/list-row/ui";
-import {
-  getValueLocalStorage,
-  type LocalStorageListStateType,
-  setValueLocalStorage,
-  LOCAL_STORAGE_KEY_LIST_STATE,
-} from "../../shared/config/helpers";
 import type { SortOrderType } from "../../shared/config/types";
-
-const BATCH_SIZE = 20;
-
-interface Item {
-  id: number;
-  name: string;
-  order: number;
-}
+import {
+  BATCH_SIZE,
+  checkRowQuery,
+  getListCheckedQuery,
+  getListQuery,
+  getSortQuery,
+  updateSortOrderQuery,
+  updateSortRowQuery,
+  type ListItem,
+} from "./model";
+import { useDebounce } from "../../shared/config/hook";
 
 export const List: React.FC = () => {
-  const listState: LocalStorageListStateType = {
-    selectedIds: [],
-    sortOrder: "asc",
-    ...getValueLocalStorage<LocalStorageListStateType>(
-      LOCAL_STORAGE_KEY_LIST_STATE
-    ),
-  };
-
-  const [selected, setSelected] = useState<Set<number>>(
-    new Set(listState.selectedIds)
-  );
+  const [selected, setSelected] = useState<Set<number>>(new Set());
   const [search, setSearch] = useState<string>("");
-  const [sortOrder, setSortOrder] = useState<SortOrderType>(
-    listState.sortOrder
-  );
-  const [data, setData] = useState<{ totalRecords: number; records: Item[] }>({
+  const [sortOrder, setSortOrder] = useState<SortOrderType>("asc");
+  const [data, setData] = useState<{
+    totalRecords: number;
+    records: ListItem[];
+  }>({
     totalRecords: 0,
     records: [],
   });
 
   const loadingRef = useRef<boolean>(false);
 
-  const fetchItems = useCallback(
-    async (start: number, limit: number) => {
-      try {
-        if (loadingRef.current) return { records: [], totalRecords: 0 };
+  const fetchItems = async (start: number, limit: number) => {
+    try {
+      if (loadingRef.current) return { records: [], totalRecords: 0 };
 
-        loadingRef.current = true;
+      loadingRef.current = true;
+      const result = await getListQuery(start, limit, search);
+      loadingRef.current = false;
 
-        const response = await fetch(
-          `${
-            import.meta.env.VITE_BACKEND_URL
-          }/list-default?start=${start}&limit=${limit}&search=${search}&sortOrder=${sortOrder}`
-        );
+      return result;
+    } catch (e) {
+      console.log(e);
+      loadingRef.current = false;
+      return { records: [], totalRecords: 0 };
+    }
+  };
 
-        if (!response.ok)
-          throw new Error("Произошла ошибка при получении данных.");
+  const ititData = async () => {
+    try {
+      const resultSort = await getSortQuery();
+      const resultCheckedList = await getListCheckedQuery();
 
-        loadingRef.current = false;
-        return await response.json();
-      } catch (e) {
-        console.log(e);
-        loadingRef.current = false;
-        return { records: [], totalRecords: 0 };
-      }
-    },
-    [search, sortOrder]
-  );
-
-  useEffect(() => {
-    const handleEffect = async () => {
-      const result = await fetchItems(0, BATCH_SIZE);
-      setData({
-        totalRecords: result.totalRecords,
-        records: result.records,
-      });
-    };
-    handleEffect();
-  }, [fetchItems]);
+      setSelected(resultCheckedList);
+      setSortOrder(resultSort);
+    } catch (e) {
+      console.log(e);
+    }
+  };
 
   const loadMoreItems = async () => {
     const result = await fetchItems(data.records.length, BATCH_SIZE);
@@ -88,53 +66,27 @@ export const List: React.FC = () => {
     }));
   };
 
-  const toggleSelect = (id: number) => {
-    const newSet = new Set(selected);
+  const toggleSelect = async (id: number) => {
+    try {
+      const result = await checkRowQuery(id);
 
-    if (newSet.has(id)) {
-      newSet.delete(id);
-    } else {
-      newSet.add(id);
+      setSelected(result);
+    } catch (e) {
+      console.log(e);
     }
-
-    setSelected(newSet);
-
-    const prevState = getValueLocalStorage<LocalStorageListStateType>(
-      LOCAL_STORAGE_KEY_LIST_STATE
-    );
-
-    setValueLocalStorage<LocalStorageListStateType>(
-      LOCAL_STORAGE_KEY_LIST_STATE,
-      {
-        selectedIds: Array.from(newSet),
-        sortOrder: prevState?.sortOrder ?? "asc",
-      }
-    );
   };
 
   const moveItem = async (fromIndex: number, toIndex: number) => {
     try {
       const movedItem = data.records[fromIndex];
-      const targetIndex =
-        sortOrder === "desc" ? data.totalRecords - toIndex - 1 : toIndex;
-
-      const response = await fetch(
-        `${import.meta.env.VITE_BACKEND_URL}/operation-sort`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            id: movedItem.id,
-            toIndex: targetIndex,
-          }),
-        }
-      );
-
-      await response.json();
-
+      const toItem = data.records[toIndex];
+ 
+      await updateSortRowQuery(movedItem.id, toItem.id);
+      
       const newItems = [...data.records];
       newItems.splice(fromIndex, 1);
       newItems.splice(toIndex, 0, movedItem);
+      console.log(fromIndex, toIndex);
 
       setData((prev) => ({
         ...prev,
@@ -145,20 +97,42 @@ export const List: React.FC = () => {
     }
   };
 
-  const handleSort = () => {
-    const newSortOrder = sortOrder === "asc" ? "desc" : "asc";
-    setSortOrder(newSortOrder);
-    setValueLocalStorage<LocalStorageListStateType>(
-      LOCAL_STORAGE_KEY_LIST_STATE,
-      {
-        selectedIds:
-          getValueLocalStorage<LocalStorageListStateType>(
-            LOCAL_STORAGE_KEY_LIST_STATE
-          )?.selectedIds ?? [],
-        sortOrder: newSortOrder,
-      }
-    );
+  const handleSort = async () => {
+    try {
+      const newSortOrder = sortOrder === "asc" ? "desc" : "asc";
+      await updateSortOrderQuery(newSortOrder);
+      setSortOrder(newSortOrder);
+    } catch (e) {
+      console.log(e);
+    }
   };
+
+
+  const debouncedSearch = useDebounce(search, 300);
+
+  useEffect(() => {
+    ititData();
+  }, []);
+
+  useEffect(() => {
+    const handleEffect = async () => {
+      try {
+        const result = await fetchItems(0, BATCH_SIZE);
+        setData({
+          totalRecords: result.totalRecords,
+          records: result.records,
+        });
+      } catch (e) {
+        console.log(e);
+      }
+    };
+
+    handleEffect();
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortOrder, debouncedSearch]);
+
+  
 
   return (
     <DndProvider backend={HTML5Backend}>
