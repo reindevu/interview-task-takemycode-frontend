@@ -108,7 +108,7 @@ export const List: React.FC = () => {
     }
   };
 
-  const debouncedSearch = useDebounce(search, 300);
+  const debouncedSearch = useDebounce(search, 350);
 
   useEffect(() => {
     ititData();
