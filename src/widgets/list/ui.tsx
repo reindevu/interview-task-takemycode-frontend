@@ -38,6 +38,7 @@ export const List: React.FC = () => {
       if (loadingRef.current) return { records: [], totalRecords: 0 };
 
       loadingRef.current = true;
+
       const result = await getListQuery(
         start,
         limit,
@@ -76,17 +77,16 @@ export const List: React.FC = () => {
     }));
   };
 
-  const toggleSelect = async (id: number) => {
+  const handleCheckRow = async (id: number) => {
     try {
       const result = await checkRowQuery(id);
-
       setSelected(result);
     } catch (e) {
       console.log(e);
     }
   };
 
-  const moveItem = async (fromIndex: number, toIndex: number) => {
+  const handleMove = async (fromIndex: number, toIndex: number) => {
     try {
       const movedItem = data.records[fromIndex];
       const toItem = data.records[toIndex];
@@ -115,7 +115,7 @@ export const List: React.FC = () => {
     }
   };
 
-  const debouncedSearch = useDebounce(search, 300);
+  const debouncedSearch = useDebounce(search, 350);
 
   useEffect(() => {
     ititData();
@@ -157,6 +157,7 @@ export const List: React.FC = () => {
             placeholder="Поиск по элементам"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            disabled={data.records.length === 0 && !search}
             className="bg-neutral-100 rounded-md h-9 text-sm px-4 w-full"
           />
 
@@ -171,7 +172,7 @@ export const List: React.FC = () => {
           itemSize={40}
           className="w-full"
           width="100%"
-          itemData={{ selected, toggleSelect, items: data.records, moveItem }}
+          itemData={{ selected, toggleSelect: handleCheckRow, items: data.records, moveItem: handleMove }}
           onItemsRendered={({ visibleStopIndex }) => {
             if (visibleStopIndex === data.records.length - 1) {
               loadMoreItems();
