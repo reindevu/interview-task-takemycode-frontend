@@ -12,7 +12,6 @@ import {
   getListCheckedQuery,
   getListQuery,
   getSortQuery,
-  updateSortOrderQuery,
   updateSortRowQuery,
   type ListItem,
 } from "./model";
@@ -21,7 +20,9 @@ import { useDebounce } from "../../shared/config/hook";
 export const List: React.FC = () => {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [search, setSearch] = useState<string>("");
-  const [sortOrder, setSortOrder] = useState<SortOrderType>("asc");
+  const [sortOrder, setSortOrder] = useState<SortOrderType | undefined>(
+    undefined
+  );
   const [data, setData] = useState<{
     totalRecords: number;
     records: ListItem[];
@@ -37,7 +38,12 @@ export const List: React.FC = () => {
       if (loadingRef.current) return { records: [], totalRecords: 0 };
 
       loadingRef.current = true;
-      const result = await getListQuery(start, limit, search);
+      const result = await getListQuery(
+        start,
+        limit,
+        search,
+        sortOrder ?? "asc"
+      );
       loadingRef.current = false;
 
       return result;
@@ -50,8 +56,10 @@ export const List: React.FC = () => {
 
   const ititData = async () => {
     try {
-      const resultSort = await getSortQuery();
-      const resultCheckedList = await getListCheckedQuery();
+      const [resultSort, resultCheckedList] = await Promise.all([
+        getSortQuery(),
+        getListCheckedQuery(),
+      ]);
 
       setSelected(resultCheckedList);
       setSortOrder(resultSort);
@@ -101,14 +109,13 @@ export const List: React.FC = () => {
   const handleSort = async () => {
     try {
       const newSortOrder = sortOrder === "asc" ? "desc" : "asc";
-      await updateSortOrderQuery(newSortOrder);
       setSortOrder(newSortOrder);
     } catch (e) {
       console.log(e);
     }
   };
 
-  const debouncedSearch = useDebounce(search, 350);
+  const debouncedSearch = useDebounce(search, 200);
 
   useEffect(() => {
     ititData();
@@ -116,6 +123,8 @@ export const List: React.FC = () => {
 
   useEffect(() => {
     const handleEffect = async () => {
+      if (!sortOrder) return;
+
       try {
         const result = await fetchItems(0, BATCH_SIZE);
         setData({

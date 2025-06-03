@@ -18,26 +18,6 @@ export const getSortQuery = async (): Promise<SortOrderType> => {
   return result.sortOrder as SortOrderType;
 };
 
-export const updateSortOrderQuery = async (
-  sortOrder: SortOrderType
-): Promise<void> => {
-  const response = await fetch(
-    `${import.meta.env.VITE_BACKEND_URL}/updateSortOrder`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sortOrder,
-      }),
-    }
-  );
-
-  if (!response.ok)
-    throw new Error("Произошла ошибка при обновлении сортировки.");
-
-  await response.json();
-};
-
 export const updateSortRowQuery = async (
   id: number,
   targetOrder: number
@@ -92,12 +72,13 @@ export const getListCheckedQuery = async (): Promise<Set<number>> => {
 export const getListQuery = async (
   start: number,
   limit: number,
-  search: string
+  search: string,
+  sortOrder: SortOrderType
 ): Promise<{ records: ListItem[]; totalRecords: number }> => {
   const response = await fetch(
     `${
       import.meta.env.VITE_BACKEND_URL
-    }/getList?start=${start}&limit=${limit}&search=${search}`
+    }/getList?start=${start}&limit=${limit}&search=${search}&sortOrder=${sortOrder}`
   );
 
   if (!response.ok) throw new Error("Произошла ошибка при получении данных.");
